@@ -1,0 +1,345 @@
+<html>
+<head>
+    <title>Video Game Sales Data Visualization</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body {
+            font-family: Times, serif;
+        }
+        #title {
+            font-size: 30px;
+            margin-bottom: 20px;
+        }
+        .bar {
+            fill: green;
+        }
+        .annotation {
+            fill: red;
+            font-size: 14px;
+        }
+        #buttons {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="title">Video Game Sales Data Visualization</div>
+    <div id="chart"></div>
+    <div id="buttons">
+        <button id="prevButton">PREVIOUS</button>
+        <button id="nextButton">NEXT</button>
+    </div>
+    <script>
+        /* listing scene for easy rendering */
+        const scenes = [
+            { title: "Welcome to the Video Game Sales Data Visualization", render: renderScene0 }, // Scene 0: Introduction & Instructions
+            { title: "Global Sales by Year", render: renderScene1 }, // Scene 1: Sales by Year
+            { title: "Global Sales by Region", render: renderScene2 }, // Scene 2: Sales by Region
+            { title: "Genre Popularity based on Global Sales", render: renderScene3 }, // Scene 3: Genre Popularity 
+            { title: "Top 10 Publishers based on Global Sales", render: renderScene4 } // Scene 4: Top Publishers 
+        ];
+
+        /* var to tell which scene is being shown to user */
+        let currentScene = 0;
+        let width = 1000;
+        let height = 650;
+        let gameData = [];
+
+        /* loads data into variable */
+        d3.csv('video_game_sales.csv').then(data => {gameData = data;});
+
+        /* renders original scene (Scene 0) */
+        renderScene();
+
+        /* renders 'currentScene' and the title associated with it */
+        function renderScene() {
+            document.getElementById('title').innerText = scenes[currentScene].title;
+            scenes[currentScene].render(gameData);
+        }
+
+        /* define svg bounds */
+        function defineSVGBounds(width, height) {
+            const svg = d3.select('#chart').append('svg')
+                .attr('width', width)
+                .attr('height', height);
+            return svg;
+        }
+
+        /* next button action */
+        document.getElementById('nextButton').addEventListener('click', function() {
+            currentScene = (currentScene + 1) % scenes.length;
+            renderScene();
+        });
+
+        /* previous button action */
+        document.getElementById('prevButton').addEventListener('click', function() {
+            currentScene = (currentScene - 1 + scenes.length) % scenes.length;
+            renderScene();
+        });
+
+        /* Scene 0: Introduction & Instructions */
+        function renderScene0() {
+            d3.select('#chart').html(''); // clears screen
+            d3.select('#chart').append('div').text('This is a visualization of video game sales from 1980 - 2020. Use the "Next" and "Previous" buttons to navigate through each scene.'); // brief instructions
+            svg = defineSVGBounds(width, 632); // define svg bounds (add to keep buttons in same place the whole time)
+        }
+
+        /* Scene 1: Global Sales by Year */
+        function renderScene1(data) {
+            d3.select('#chart').html(''); // clears screen
+            svg = defineSVGBounds(width, height); // define svg bounds
+
+            const xScale = d3.scaleBand() // create x scale based on Year
+                .domain(data.map(d => d.Year))
+                .range([50, 950])
+                .padding(0.2);
+
+            const yScale = d3.scaleLinear() // create y scale based on Global Sales
+                .domain([0, d3.max(data, d => +d.Global_Sales)])
+                .range([450, 50]);
+
+            svg.append('g') // create x axis
+                .attr('transform', 'translate(0, 450)')
+                .call(d3.axisBottom(xScale))
+                .selectAll('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('dx', '-.8em')
+                .attr('dy', '.15em')
+                .style('text-anchor', 'end');
+
+            svg.append('g') //  create y axis
+                .attr('transform', 'translate(50, 0)')
+                .call(d3.axisLeft(yScale));
+
+            svg.selectAll('.bar') // create bars for chart
+                .data(data)
+                .enter().append('rect')
+                .attr('class', 'bar')
+                .attr('x', d => xScale(d.Year))
+                .attr('y', d => yScale(d.Global_Sales))
+                .attr('width', xScale.bandwidth())
+                .attr('height', d => 450 - yScale(d.Global_Sales))
+                .attr('fill', 'steelblue');
+
+            const annotations = [  // defines annotations
+                { year: '2006', text: 'Highest Sales Year' },
+                { year: '2017', text: 'Lowest Sales Year' } 
+            ];
+
+            svg.selectAll('.annotation') // creates annoations for highest and lowest sales year
+                .data(annotations)
+                .enter().append('text')
+                .attr('x', d => xScale(d.year) + xScale.bandwidth() / 2)
+                .attr('y', 20)
+                .attr('class', 'annotation')
+                .attr('text-anchor', 'middle')
+                .text(d => d.text);
+            
+            svg.append('text') // label x axis
+                .attr('transform', 'translate(500, 520)')
+                .style('text-anchor', 'middle')
+                .text('Year');
+
+            svg.append('text') // label y axis
+                .attr('transform', 'translate(980, 250) rotate(90)')
+                .style('text-anchor', 'middle')
+                .text('Global Sales (in millions)');
+        }
+
+        /* Scene 2: Sales by Region */
+        function renderScene2(data) {
+            d3.select('#chart').html(''); // clears screen
+            svg = defineSVGBounds(width, height); // define svg bounds
+
+            const regions = ['NA_Sales', 'EU_Sales', 'JP_Sales', 'Other_Sales']; // defines regions for x axis vars
+            const regionSales = regions.map(region => ({ // calculates to total region sales based on regions
+                region,
+                sales: d3.sum(data, d => +d[region])
+            }));
+
+            const xScale = d3.scaleBand() // defines x scale based on Region
+                .domain(regionSales.map(d => d.region))
+                .range([50, 950])
+                .padding(0.2);
+
+            const yScale = d3.scaleLinear() // defines y scale based on Regions sales
+                .domain([0, d3.max(regionSales, d => d.sales)])
+                .range([450, 50]);
+
+            svg.append('g') // create x axis
+                .attr('transform', 'translate(0, 450)')
+                .call(d3.axisBottom(xScale));
+
+            svg.append('g') // create y axis
+                .attr('transform', 'translate(50, 0)')
+                .call(d3.axisLeft(yScale));
+
+            svg.selectAll('.bar') // create bars for chart
+                .data(regionSales)
+                .enter().append('rect')
+                .attr('class', 'bar')
+                .attr('x', d => xScale(d.region))
+                .attr('y', d => yScale(d.sales))
+                .attr('width', xScale.bandwidth())
+                .attr('height', d => 450 - yScale(d.sales))
+                .attr('fill', 'steelblue');
+
+            const annotations = [ // defines annotations
+                { region: 'NA_Sales', text: 'Highest Sales' },
+                { region: 'Other_Sales', text: 'Lowest Sales' }
+            ];
+
+            svg.selectAll('.annotation') // creates annotations for highest and lowest sales
+                .data(annotations)
+                .enter().append('text')
+                .attr('x', d => xScale(d.region) + xScale.bandwidth() / 2)
+                .attr('y', 20)
+                .attr('class', 'annotation')
+                .attr('text-anchor', 'middle')
+                .text(d => d.text);
+
+            svg.append('text') // label x axis
+                .attr('transform', 'translate(500, 520)')
+                .style('text-anchor', 'middle')
+                .text('Region');
+
+            svg.append('text') // label y axis
+                .attr('transform', 'translate(980, 250) rotate(90)')
+                .style('text-anchor', 'middle')
+                .text('Global Sales (in millions)');
+        }
+
+        /* Scene 3: Genre Popularity */
+        function renderScene3(data) { 
+            d3.select('#chart').html(''); // clears screen
+            svg = defineSVGBounds(width, height); // define svg bounds
+
+            const genreSales = d3.group(data, d => d.Genre); // gets genres and calculates their total sales
+            const genreArray = Array.from(genreSales, ([genre, values]) => ({
+                genre,
+                sales: d3.sum(values, d => d.Global_Sales)
+            }));
+
+            const xScale = d3.scaleBand() // defines x scale based on Genre
+                .domain(genreArray.map(d => d.genre))
+                .range([50, 950])
+                .padding(0.2);
+
+            const yScale = d3.scaleLinear() // defines y scale based on Sales
+                .domain([0, d3.max(genreArray, d => d.sales)])
+                .range([450, 50]);
+
+            svg.append('g') // create x axis
+                .attr('transform', 'translate(0, 450)')
+                .call(d3.axisBottom(xScale));
+
+            svg.append('g') // create y axis
+                .attr('transform', 'translate(50, 0)')
+                .call(d3.axisLeft(yScale));
+
+            svg.selectAll('.bar') // create bars for chart
+                .data(genreArray)
+                .enter().append('rect')
+                .attr('class', 'bar')
+                .attr('x', d => xScale(d.genre))
+                .attr('y', d => yScale(d.sales))
+                .attr('width', xScale.bandwidth())
+                .attr('height', d => 450 - yScale(d.sales))
+                .attr('fill', 'steelblue');
+
+            const annotations = [ // defines annotations
+                { genre: 'Action', text: 'Most Popular Genre' },
+                { genre: 'Strategy', text: 'Least Popular Genre' }
+            ];
+
+            svg.selectAll('.annotation') // creates annotations for highest and lowest sales for popularity
+                .data(annotations)
+                .enter().append('text')
+                .attr('x', d => xScale(d.genre) + xScale.bandwidth() / 2)
+                .attr('y', 20)
+                .attr('class', 'annotation')
+                .attr('text-anchor', 'middle')
+                .text(d => d.text);
+
+            svg.append('text') // label x axis
+                .attr('transform', 'translate(500, 520)')
+                .style('text-anchor', 'middle')
+                .text('Genre');
+
+            svg.append('text') // label y axis
+                .attr('transform', 'translate(980, 250) rotate(90)')
+                .style('text-anchor', 'middle')
+                .text('Global Sales (in millions)');
+        }
+
+        /* Scene 4: Top Publishers */
+        function renderScene4(data) {
+            d3.select('#chart').html(''); // clears screen
+            svg = defineSVGBounds(width, height); // define svg bounds
+
+            const publisherSales = d3.group(data, d => d.Publisher); // take top 10 publishers based on global sales
+            const topPublishers = Array.from(publisherSales, ([publisher, values]) => ({
+                publisher,
+                sales: d3.sum(values, d => d.Global_Sales)
+            }))
+            .sort((a, b) => b.sales - a.sales)
+            .slice(0, 10);
+
+            const xScale = d3.scaleBand() // defines x scale based on Publisher
+                .domain(topPublishers.map(d => d.publisher))
+                .range([50, 950])
+                .padding(0.2);
+
+            const yScale = d3.scaleLinear() // defines y scale based on Sales
+                .domain([0, d3.max(topPublishers, d => d.sales)])
+                .range([450, 50]);
+
+            svg.append('g') // create x axis
+                .attr('transform', 'translate(0, 450)')
+                .call(d3.axisBottom(xScale))
+                .selectAll('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('dx', '-.8em')
+                .attr('dy', '.15em')
+                .style('text-anchor', 'end');
+
+            svg.append('g') // create y axis
+                .attr('transform', 'translate(50, 0)')
+                .call(d3.axisLeft(yScale));
+
+            svg.selectAll('.bar') // create bars for chart
+                .data(topPublishers)
+                .enter().append('rect')
+                .attr('class', 'bar')
+                .attr('x', d => xScale(d.publisher))
+                .attr('y', d => yScale(d.sales))
+                .attr('width', xScale.bandwidth())
+                .attr('height', d => 450 - yScale(d.sales))
+                .attr('fill', 'steelblue');
+
+            const annotations = [ // defines annotations
+                { publisher: 'Nintendo', text: 'Top Publisher' }
+            ];
+
+            svg.selectAll('.annotation') // creates annotations for highest and lowest sales for popularity
+                .data(annotations)
+                .enter().append('text')
+                .attr('x', d => xScale(d.publisher) + xScale.bandwidth() / 2)
+                .attr('y', 20)
+                .attr('class', 'annotation')
+                .attr('text-anchor', 'middle')
+                .text(d => d.text);
+                
+            svg.append('text') // label x axis
+                .attr('transform', 'translate(500, 620)')
+                .style('text-anchor', 'middle')
+                .text('Publisher');
+
+            svg.append('text') // label y axis
+                .attr('transform', 'translate(980, 250) rotate(90)')
+                .style('text-anchor', 'middle')
+                .text('Global Sales (in millions)');
+        }
+    </script>
+</body>
+</html>
